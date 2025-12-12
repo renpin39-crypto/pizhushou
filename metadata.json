@@ -1,0 +1,5 @@
+{
+  "name": "AI Caption 改写助手",
+  "description": "基于 Gemini AI 的专业批量图像描述分析与改写工具。支持 Excel 批量处理和 PDF 规则提取。",
+  "requestFramePermissions": []
+}
