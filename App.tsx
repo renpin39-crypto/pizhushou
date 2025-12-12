@@ -264,8 +264,14 @@ function App() {
     const itemsToProcess = data.map((item, index) => ({ item, index }))
       .filter(({ item }) => item.status === 'pending' || item.status === 'error');
 
-    // IMPORTANT: Set concurrency to 1 for Free Tier to avoid Rate Limits (429)
+    // Free Tier Safety Config
     const CONCURRENCY = 1; 
+    
+    // Pro models have extremely low Rate Limits in Free Tier (e.g. 2 RPM)
+    // Flash models are faster (e.g. 15 RPM)
+    const IS_PRO_MODEL = selectedModel.includes('pro');
+    const SAFE_DELAY_MS = IS_PRO_MODEL ? 10000 : 4000; // 10s for Pro, 4s for Flash
+
     let index = 0;
 
     const worker = async () => {
@@ -286,13 +292,12 @@ function App() {
              while (!success && retryCount <= MAX_RETRIES && !stopProcessingRef.current) {
                 
                  try {
-                     // Set status to processing (or retrying)
                      setData(prev => {
                         const newData = [...prev];
                         newData[originalIndex] = { 
                             ...newData[originalIndex], 
                             status: 'processing', 
-                            error: retryCount > 0 ? `触发限流，第 ${retryCount} 次重试中...` : undefined 
+                            error: retryCount > 0 ? `触发限流，第 ${retryCount} 次自动重试...` : undefined 
                         };
                         return newData;
                      });
@@ -311,7 +316,7 @@ function App() {
                             status: 'completed', 
                             rewritten: result.rewritten,
                             original: result.extractedOriginal || newData[originalIndex].original,
-                            error: undefined // Clear any previous error
+                            error: undefined 
                         };
                         return newData;
                     });
@@ -319,8 +324,8 @@ function App() {
                     setProcessingStats(prev => ({ ...prev, completed: prev.completed + 1 }));
                     success = true;
 
-                    // Add a delay between successful requests to respect Rate Limits
-                    await delay(3000); 
+                    // Apply Safe Delay to prevent Rate Limits
+                    await delay(SAFE_DELAY_MS); 
 
                  } catch (err: any) {
                      const errorMessage = err.message || '';
@@ -329,32 +334,31 @@ function App() {
 
                      if (isRateLimit && retryCount < MAX_RETRIES) {
                          retryCount++;
-                         // Exponential Backoff: 5s, 10s, 20s, 40s...
-                         // Adding some jitter to avoid thundering herd if we ever increase concurrency
-                         const waitTime = (5000 * Math.pow(2, retryCount - 1)) + (Math.random() * 1000);
                          
-                         console.warn(`Rate limit hit for item ${originalIndex}. Waiting ${Math.round(waitTime/1000)}s before retry ${retryCount}...`);
+                         // Aggressive Backoff for Free Tier
+                         // Start at 20s, then 40s, 80s...
+                         const waitTime = (20000 * Math.pow(2, retryCount - 1));
                          
-                         // Update UI to show waiting
+                         console.warn(`Rate limit hit. Waiting ${Math.round(waitTime/1000)}s...`);
+                         
                          setData(prev => {
                             const newData = [...prev];
                             newData[originalIndex] = { 
                                 ...newData[originalIndex], 
-                                error: `配额超限，${Math.round(waitTime/1000)}秒后重试...` 
+                                error: `免费配额限制，${Math.round(waitTime/1000)}秒后重试...` 
                             };
                             return newData;
                          });
 
                          await delay(waitTime);
                      } else {
-                         // Fatal error or max retries reached
                          console.error(err);
                          setData(prev => {
                             const newData = [...prev];
                             newData[originalIndex] = { 
                                 ...newData[originalIndex], 
                                 status: 'error', 
-                                error: isRateLimit ? '配额耗尽，请稍后再试或更换API Key' : errorMessage 
+                                error: isRateLimit ? '免费版配额耗尽，请休息几分钟或切换模型' : errorMessage 
                             };
                             return newData;
                          });
@@ -683,6 +687,14 @@ function App() {
                                    {matchedImagesCount} / {data.length} 图片已关联
                                </span>
                            )}
+                           
+                           {/* Model Warning for Free Tier */}
+                           {selectedModel.includes('pro') && (
+                               <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full border border-orange-200 flex items-center gap-1">
+                                   <AlertCircle className="w-3 h-3" />
+                                   Pro 模型限速高 (10s/条)
+                               </span>
+                           )}
                         </div>
                     </div>
 
@@ -759,5 +771,8 @@ function App() {
     </div>
   );
 }
+
+// Add missing imports 
+import { AlertCircle } from 'lucide-react';
 
 export default App;

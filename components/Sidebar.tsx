@@ -55,6 +55,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  const getProviderInfo = () => {
+    if (selectedModel.includes('deepseek')) return { name: 'DeepSeek', url: 'platform.deepseek.com' };
+    if (selectedModel.includes('moonshot')) return { name: 'Moonshot (Kimi)', url: 'platform.moonshot.cn' };
+    return { name: 'Google AI Studio', url: 'aistudio.google.com' };
+  };
+
+  const provider = getProviderInfo();
+
   return (
     <div className="w-80 bg-white border-r border-slate-200 h-screen flex flex-col fixed left-0 top-0 overflow-y-auto z-10">
       {/* Header with Tabs */}
@@ -91,24 +99,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <p className="text-xs text-slate-500">配置 API Key 与改写规则</p>
                 </div>
 
-                {/* API Key Section */}
-                <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Key className="w-4 h-4" />
-                    Google AI Studio Key
-                </label>
-                <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="输入 API Key"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
-                />
-                <p className="text-xs text-slate-500">
-                    访问 Gemini 模型所必需。
-                </p>
-                </div>
-
                 {/* Model Selection */}
                 <div className="space-y-3">
                     <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -124,6 +114,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                     </select>
+                </div>
+
+                {/* API Key Section */}
+                <div className="space-y-3">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <Key className="w-4 h-4" />
+                    API Key ({provider.name})
+                </label>
+                <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder={`输入 ${provider.name} Key`}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                />
+                <p className="text-xs text-slate-500">
+                    请前往 <a href={`https://${provider.url}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{provider.url}</a> 获取。
+                </p>
                 </div>
 
                 {/* Rules Upload Section */}
@@ -237,7 +245,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
                 <li>输入 API Key 并选择模型。</li>
                 <li>上传 Excel 或图片进行处理。</li>
-                <li>处理完成后可“保存记录”至历史页。</li>
+                <li>DeepSeek/Kimi 目前仅支持文本改写。</li>
             </ul>
         </div>
       )}

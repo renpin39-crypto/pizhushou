@@ -56,6 +56,13 @@ export const DEFAULT_SYSTEM_PROMPT = `
 `;
 
 export const MODEL_OPTIONS = [
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Fast & Efficient)' },
-  { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro (High Quality)' },
+  // Google
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Google - 推荐)' },
+  { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro (Google - 高画质)' },
+  // DeepSeek
+  { value: 'deepseek-chat', label: 'DeepSeek V3 (DeepSeek - 仅文本)' },
+  { value: 'deepseek-reasoner', label: 'DeepSeek R1 (DeepSeek - 仅文本)' },
+  // Kimi
+  { value: 'moonshot-v1-8k', label: 'Kimi Moonshot v1 8k (Moonshot - 仅文本)' },
+  { value: 'moonshot-v1-32k', label: 'Kimi Moonshot v1 32k (Moonshot - 仅文本)' },
 ];
