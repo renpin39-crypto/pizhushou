@@ -56,6 +56,6 @@ export const DEFAULT_SYSTEM_PROMPT = `
 `;
 
 export const MODEL_OPTIONS = [
-  { value: 'gemini-2.0-flash-exp', label: 'gemini-2.0-flash-exp' },
-  { value: 'gemini-experimental', label: 'gemini-experimental' },
+  { value: 'gemini-1.5-flash', label: 'gemini-1.5-flash' },
+  { value: 'gemini-1.5-pro', label: 'gemini-1.5-pro' },
 ];
