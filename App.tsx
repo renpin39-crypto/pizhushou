@@ -11,11 +11,14 @@ import clsx from 'clsx';
 
 type UploadMode = 'excel' | 'image' | 'match' | 'manual';
 
+// Helper for delaying execution
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 function App() {
-  // REMOVED HARDCODED KEY: Initialize as empty string to force user input
   const [apiKey, setApiKey] = useState('');
   const [customRules, setCustomRules] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gemini-3-pro-preview');
+  // Default to Flash model which has higher rate limits for free tier users
+  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
   
   const [uploadMode, setUploadMode] = useState<UploadMode>('excel');
   const [data, setData] = useState<CaptionRow[]>([]);
@@ -261,7 +264,8 @@ function App() {
     const itemsToProcess = data.map((item, index) => ({ item, index }))
       .filter(({ item }) => item.status === 'pending' || item.status === 'error');
 
-    const CONCURRENCY = 3;
+    // IMPORTANT: Set concurrency to 1 for Free Tier to avoid Rate Limits (429)
+    const CONCURRENCY = 1; 
     let index = 0;
 
     const worker = async () => {
@@ -274,45 +278,90 @@ function App() {
 
              const { item, index: originalIndex } = itemsToProcess[currentIndex];
 
-             setData(prev => {
-                const newData = [...prev];
-                newData[originalIndex] = { ...newData[originalIndex], status: 'processing', error: undefined };
-                return newData;
-             });
+             // Retry Logic Loop
+             let retryCount = 0;
+             let success = false;
+             const MAX_RETRIES = 5;
 
-             try {
-                const input = {
-                    text: item.original || undefined,
-                    imageData: item.imageData || undefined
-                };
-
-                const result = await rewriteCaption(apiKey, selectedModel, input, customRules);
+             while (!success && retryCount <= MAX_RETRIES && !stopProcessingRef.current) {
                 
-                setData(prev => {
-                    const newData = [...prev];
-                    newData[originalIndex] = { 
-                        ...newData[originalIndex], 
-                        status: 'completed', 
-                        rewritten: result.rewritten,
-                        original: result.extractedOriginal || newData[originalIndex].original
-                    };
-                    return newData;
-                });
-                
-                setProcessingStats(prev => ({ ...prev, completed: prev.completed + 1 }));
+                 try {
+                     // Set status to processing (or retrying)
+                     setData(prev => {
+                        const newData = [...prev];
+                        newData[originalIndex] = { 
+                            ...newData[originalIndex], 
+                            status: 'processing', 
+                            error: retryCount > 0 ? `触发限流，第 ${retryCount} 次重试中...` : undefined 
+                        };
+                        return newData;
+                     });
 
-             } catch (err: any) {
-                 console.error(err);
-                 setData(prev => {
-                    const newData = [...prev];
-                    newData[originalIndex] = { 
-                        ...newData[originalIndex], 
-                        status: 'error', 
-                        error: err.message 
+                    const input = {
+                        text: item.original || undefined,
+                        imageData: item.imageData || undefined
                     };
-                    return newData;
-                 });
-                 setProcessingStats(prev => ({ ...prev, failed: prev.failed + 1 }));
+
+                    const result = await rewriteCaption(apiKey, selectedModel, input, customRules);
+                    
+                    setData(prev => {
+                        const newData = [...prev];
+                        newData[originalIndex] = { 
+                            ...newData[originalIndex], 
+                            status: 'completed', 
+                            rewritten: result.rewritten,
+                            original: result.extractedOriginal || newData[originalIndex].original,
+                            error: undefined // Clear any previous error
+                        };
+                        return newData;
+                    });
+                    
+                    setProcessingStats(prev => ({ ...prev, completed: prev.completed + 1 }));
+                    success = true;
+
+                    // Add a delay between successful requests to respect Rate Limits
+                    await delay(3000); 
+
+                 } catch (err: any) {
+                     const errorMessage = err.message || '';
+                     // Check for Rate Limit (429) or Service Unavailable (503)
+                     const isRateLimit = errorMessage.includes('429') || errorMessage.includes('Quota') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('503');
+
+                     if (isRateLimit && retryCount < MAX_RETRIES) {
+                         retryCount++;
+                         // Exponential Backoff: 5s, 10s, 20s, 40s...
+                         // Adding some jitter to avoid thundering herd if we ever increase concurrency
+                         const waitTime = (5000 * Math.pow(2, retryCount - 1)) + (Math.random() * 1000);
+                         
+                         console.warn(`Rate limit hit for item ${originalIndex}. Waiting ${Math.round(waitTime/1000)}s before retry ${retryCount}...`);
+                         
+                         // Update UI to show waiting
+                         setData(prev => {
+                            const newData = [...prev];
+                            newData[originalIndex] = { 
+                                ...newData[originalIndex], 
+                                error: `配额超限，${Math.round(waitTime/1000)}秒后重试...` 
+                            };
+                            return newData;
+                         });
+
+                         await delay(waitTime);
+                     } else {
+                         // Fatal error or max retries reached
+                         console.error(err);
+                         setData(prev => {
+                            const newData = [...prev];
+                            newData[originalIndex] = { 
+                                ...newData[originalIndex], 
+                                status: 'error', 
+                                error: isRateLimit ? '配额耗尽，请稍后再试或更换API Key' : errorMessage 
+                            };
+                            return newData;
+                         });
+                         setProcessingStats(prev => ({ ...prev, failed: prev.failed + 1 }));
+                         break; // Exit retry loop
+                     }
+                 }
              }
         }
     };
