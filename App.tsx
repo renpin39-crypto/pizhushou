@@ -12,7 +12,8 @@ import clsx from 'clsx';
 type UploadMode = 'excel' | 'image' | 'match' | 'manual';
 
 function App() {
-  const [apiKey, setApiKey] = useState('AIzaSyD7nv3_YFM15SUhQ_b6VbR5HjyIMjvy41U');
+  // REMOVED HARDCODED KEY: Initialize as empty string to force user input
+  const [apiKey, setApiKey] = useState('');
   const [customRules, setCustomRules] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-3-pro-preview');
   
@@ -249,7 +250,7 @@ function App() {
 
   const startProcessing = async () => {
     if (!apiKey) {
-      alert("请在侧边栏输入您的 Gemini API Key。");
+      alert("请在左侧【设置】栏中输入您的 Gemini API Key 才能开始。\n\n您可以前往 aistudio.google.com 免费申请。");
       return;
     }
     if (data.length === 0) return;
